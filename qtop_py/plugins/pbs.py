@@ -11,7 +11,6 @@ import sys
 
 class PBSStatExtractor(StatExtractor):
     def __init__(self, config, options):
-        print "cas was here"
 
         StatExtractor.__init__(self, config, options)
         # self.user_q_search = r'^(?P<host_name>(?P<job_id>[0-9\[\]-]+)\.(?P<domain>[\w-]+))\s+' \
@@ -21,7 +20,7 @@ class PBSStatExtractor(StatExtractor):
         #                      r'(?P<state>[BCEFHMQRSTUWX])\s+' \
         #                      r'(?P<queue_name>\w+)'
 
-        self.user_q_search = r'(?P<job_id>\d+)\s+' \
+        self.user_q_search = r'(?P<job_id>[\d\[\]]+)\s+' \
                              r'(?P<name>[\w%.=+/{}-]+)\s+' \
                              r'(?P<user>[A-Za-z0-9.]+)\s+' \
                              r'(?P<time>\d+:\d+:?\d*|0)\s+' \

@@ -1,0 +1,92 @@
+#!/usr/bin/env python
+from __future__ import print_function
+
+import argparse
+import subprocess
+import sys
+
+def process_args():
+    parser = argparse.ArgumentParser(description='''
+    Peek at the stdout log file from a running pbs job.
+    
+    Runs "tail -f" on the in progress stdout of the job. Can optionaly head/cat/tail the 
+    stdout or stderr of the inprogress job OR run "top" on node that is running the specified job. 
+    ''')
+    
+    parser.add_argument('job_id', type=str, 
+                        help='Job ID for running PBS job. [e.g.:27339.delta or 27339]')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-f', '--follow', action="store_true", 
+                        help='Show only the end of the file and keep listening ("tail -f", default)')
+    group.add_argument('-H', '--head', action="store_true", 
+                        help='Show only the beginning of the output file ("head")')
+    group.add_argument('-t', '--tail', action="store_true", 
+                        help='Show only the end of the output file ("tail")')
+    group.add_argument('-c', '--cat', action="store_true", 
+                        help='Show all of the output file ("cat")')
+    group.add_argument('-T', '--top', action="store_true", 
+                        help='Run "top" on exec host of job.')
+    parser.add_argument('-e', '--stderr', action="store_true", 
+                        help='Print from job stderr file rather than the stdout file')
+    parser.add_argument("-v", "--verbosity", action="count", default=0)
+    
+    return parser.parse_args()
+
+
+def main():
+    args = process_args()
+    
+    if '[]' in args.job_id:
+        print('ERROR: Can not peek at a job array. Please provide id of a running subjob (eg: 23476[1].delta):', file=sys.stderr)
+        sys.exit(1)
+    
+    full_job_id, exec_host = get_exec_host(args.job_id, args.verbosity)
+    print( args.stderr)    
+    if args.stderr:
+        stdout_path = '/usr/spool/PBS/spool/{}.ER'.format(full_job_id)
+    else:
+        stdout_path = '/usr/spool/PBS/spool/{}.OU'.format(full_job_id)
+
+    if args.top:
+        cmd = 'ssh -t {exec_host} top'.format(**locals())
+    else:        
+        if args.tail:
+            tool = 'tail'
+        elif args.head:
+            tool = 'head'
+        elif args.cat:
+            tool = 'cat'
+        else:
+            tool = 'tail -f'
+        
+        cmd = 'ssh {exec_host} {tool} {stdout_path}'.format(**locals())
+    
+    try:
+        subprocess.check_call(cmd, shell=True)
+    except KeyboardInterrupt:
+        pass
+
+
+def get_exec_host(job_id, verbosity):
+    """Given a job_id of a currently runnig job return a tuple of the full job_id and the exec host."""
+    try:
+        job_info = subprocess.check_output(['qstat', '-f', job_id])
+    except:
+        sys.exit(1)
+        
+    for line in job_info.splitlines():
+        if line.startswith('Job Id:'):
+            full_job_id = line.split()[2]
+        if 'exec_host' in line:
+            exec_host = line.split()[2].split('/')[0]
+            return full_job_id, exec_host
+            
+    print('ERROR: Exec host can not be found. Job not running?:', file=sys.stderr)
+    if verbosity > 1:
+        print(job_info, file=sys.stderr)
+    sys.exit(1)
+    
+
+if __name__ == '__main__':
+    main()
+    
